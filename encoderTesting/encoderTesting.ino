@@ -20,13 +20,15 @@ const int ena = 5;
 
 // Create RotaryEncoder object
 RotaryEncoder encoder(PIN_DT, PIN_CLK);
-const int ticksPerRotation = 12;
+const int ticksPerRotation = 15;
 int lastSwState;
 int encoderValue = 0;
+int wrapped = 0;
 int lastPosition = 0;
 
 double Kp = 1, Ki = 0.1, Kd = 1;
 PID_v2 myPID(Kp, Ki, Kd, PID::Direct);
+
 
 void setup() {
   Serial.begin(115200);
@@ -90,11 +92,11 @@ void trackEncoder() {
     lastPosition = newPos;
     encoderValue = newPos;
     Serial.print("Position: ");
-    Serial.println(newPos);
+    Serial.println(encoderValue);
     Serial.print("Wrapped: ");
     wrap();
-    Serial.println(encoderValue);
-    writeFile("/absolute.txt", newPos);
+    Serial.println(wrapped);
+    writeFile("/absolute.txt", encoderValue);
   }
 
   if (lastSwState != currentSw && currentSw == LOW) {
@@ -138,8 +140,10 @@ int readFile(const char *path) {
   return value;
 }
 void wrap() {
-  encoderValue = (encoderValue % ticksPerRotation + ticksPerRotation) % ticksPerRotation;
+  int cycles = encoderValue / ticksPerRotation;
+  wrapped = encoderValue - (cycles * ticksPerRotation);
 }
+
 
 void serialPIDTuning() {
   //kp=2.5
@@ -165,23 +169,27 @@ void serialPIDTuning() {
   }
 }
 void setupWifi() {
-  WiFi.softAP("ESP32-Server", "12345678");
-  WiFi.softAPsetHostname("esp32-server");
+  WiFi.mode(WIFI_AP);
+ bool result = WiFi.softAP("MPRK-Server", "0123456789");
+  
+Serial.println(result ? "AP started!" : "AP failed!");
   if (MDNS.begin("MPRK")) {
     Serial.println("MDNS responder started. Access at http://esp32.local");
   } else {
     Serial.println("Error starting mDNS");
   }
 
-
   server.on("/", HTTP_GET, []() {
-    String html = "<h1>ESP32 PID Tuning</h1>";
+    String html = "<h1>MPRK PID Tuning</h1>";
+    html += "<meta http-equiv='refresh' content='0.1'>";  // refresh every 1 second
     html += "<form action='/set' method='GET'>";
     html += "Kp: <input name='kp' type='number' step='0.01' value='" + String(Kp) + "'><br>";
     html += "Ki: <input name='ki' type='number' step='0.01' value='" + String(Ki) + "'><br>";
     html += "Kd: <input name='kd' type='number' step='0.01' value='" + String(Kd) + "'><br>";
     html += "<input type='submit' value='Update PID'>";
     html += "</form>";
+    html += "<p>Encoder Value: " + String(encoderValue) + "</p>";
+  html += "<p>Wrapped: " + String(wrapped) + "</p>";
     server.send(200, "text/html", html);
   });
   server.on("/set", HTTP_GET, []() {
