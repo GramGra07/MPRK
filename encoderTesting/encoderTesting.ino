@@ -28,7 +28,7 @@ int lastPosition = 0;
 
 double Kp = 1, Ki = 0.1, Kd = 1;
 PID_v2 myPID(Kp, Ki, Kd, PID::Direct);
-
+double pidOutput = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -55,6 +55,7 @@ void setupMotor() {
 }
 void driveMotor() {
   double val = usePID();
+  pidOutput = val;
   // Serial.println(val);
   if (val > 0) {
     //clockwise
@@ -181,7 +182,7 @@ Serial.println(result ? "AP started!" : "AP failed!");
 
   server.on("/", HTTP_GET, []() {
     String html = "<h1>MPRK PID Tuning</h1>";
-    html += "<meta http-equiv='refresh' content='0.1'>";  // refresh every 1 second
+    html += "<meta http-equiv='refresh' content='0.5'>";  // refresh every 1 second
     html += "<form action='/set' method='GET'>";
     html += "Kp: <input name='kp' type='number' step='0.01' value='" + String(Kp) + "'><br>";
     html += "Ki: <input name='ki' type='number' step='0.01' value='" + String(Ki) + "'><br>";
@@ -190,6 +191,7 @@ Serial.println(result ? "AP started!" : "AP failed!");
     html += "</form>";
     html += "<p>Encoder Value: " + String(encoderValue) + "</p>";
   html += "<p>Wrapped: " + String(wrapped) + "</p>";
+  html += "<p>PIDOut: " + String(pidOutput) + "</p>";
     server.send(200, "text/html", html);
   });
   server.on("/set", HTTP_GET, []() {
