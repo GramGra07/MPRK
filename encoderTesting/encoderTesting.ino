@@ -14,8 +14,8 @@ WebServer server(80);
 #define PIN_SW 21
 
 
-const int in1 = 8;
-const int in2 = 9;
+const int in1 = 17;
+const int in2 = 16;
 const int ena = 5;
 
 // Create RotaryEncoder object
@@ -26,12 +26,13 @@ int encoderValue = 0;
 int wrapped = 0;
 int lastPosition = 0;
 
-double Kp = 1, Ki = 0.1, Kd = 1;
+double Kp = 1, Ki = 0.0, Kd = 0.0;
 PID_v2 myPID(Kp, Ki, Kd, PID::Direct);
 double pidOutput = 0;
 
 void setup() {
   Serial.begin(115200);
+
   if (!SPIFFS.begin(true)) {
     Serial.println("SPIFFS Mount Failed");
     return;
@@ -40,6 +41,7 @@ void setup() {
   setupEncoder();
   setupPID();
   setupWifi();
+  setupMotor();
 }
 
 void loop() {
@@ -56,13 +58,13 @@ void setupMotor() {
 void driveMotor() {
   double val = usePID();
   pidOutput = val;
-  // Serial.println(val);
-  if (val > 0) {
+  Serial.println(val);
+  if (encoderValue > 0) {
     //clockwise
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
     analogWrite(ena, val);  // PWM: speed (0–255)
-  } else if (val < 0) {
+  } else if (encoderValue < 0) {
 
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
@@ -75,8 +77,17 @@ void setupPID() {
   myPID.Start(encoderValue, 0, 0);
 }
 double usePID() {
-  const double input = encoderValue;
-  return myPID.Run(input);
+  const double input = -abs(encoderValue);
+  double val = myPID.Run(input);
+  if (encoderValue != 0) {
+    val = (val + 72);
+  } else {
+    val = 0;
+  }
+  if (val > 255) {
+    val = 255.0;
+  }
+  return val;
 }
 void setupEncoder() {
   pinMode(PIN_SW, INPUT_PULLUP);
@@ -86,7 +97,7 @@ void setupEncoder() {
 
 void trackEncoder() {
   int currentSw = digitalRead(PIN_SW);
-  encoder.tick();  
+  encoder.tick();
 
   int newPos = encoder.getPosition();
   if (newPos != lastPosition) {
@@ -171,9 +182,9 @@ void serialPIDTuning() {
 }
 void setupWifi() {
   WiFi.mode(WIFI_AP);
- bool result = WiFi.softAP("MPRK-Server", "0123456789");
-  
-Serial.println(result ? "AP started!" : "AP failed!");
+  bool result = WiFi.softAP("MPRK-Server", "0123456789");
+
+  Serial.println(result ? "AP started!" : "AP failed!");
   if (MDNS.begin("MPRK")) {
     Serial.println("MDNS responder started. Access at http://esp32.local");
   } else {
@@ -182,7 +193,7 @@ Serial.println(result ? "AP started!" : "AP failed!");
 
   server.on("/", HTTP_GET, []() {
     String html = "<h1>MPRK PID Tuning</h1>";
-    html += "<meta http-equiv='refresh' content='0.5'>";  // refresh every 1 second
+    // html += "<meta http-equiv='refresh' content='0.5'>";  // refresh every 1 second
     html += "<form action='/set' method='GET'>";
     html += "Kp: <input name='kp' type='number' step='0.01' value='" + String(Kp) + "'><br>";
     html += "Ki: <input name='ki' type='number' step='0.01' value='" + String(Ki) + "'><br>";
@@ -190,8 +201,8 @@ Serial.println(result ? "AP started!" : "AP failed!");
     html += "<input type='submit' value='Update PID'>";
     html += "</form>";
     html += "<p>Encoder Value: " + String(encoderValue) + "</p>";
-  html += "<p>Wrapped: " + String(wrapped) + "</p>";
-  html += "<p>PIDOut: " + String(pidOutput) + "</p>";
+    html += "<p>Wrapped: " + String(wrapped) + "</p>";
+    html += "<p>PIDOut: " + String(pidOutput) + "</p>";
     server.send(200, "text/html", html);
   });
   server.on("/set", HTTP_GET, []() {
@@ -202,12 +213,12 @@ Serial.println(result ? "AP started!" : "AP failed!");
     myPID.SetTunings(Kp, Ki, Kd);
     myPID.Start(encoderValue, 0, 0);
 
-    // String msg = "<p>PID updated:</p>";
-    // msg += "<p>Kp = " + String(Kp) + "</p>";
-    // msg += "<p>Ki = " + String(Ki) + "</p>";
-    // msg += "<p>Kd = " + String(Kd) + "</p>";
-    // msg += "<a href='/'>Back</a>";
-    // server.send(200, "text/html", msg);
+    String msg = "<p>PID updated:</p>";
+    msg += "<p>Kp = " + String(Kp) + "</p>";
+    msg += "<p>Ki = " + String(Ki) + "</p>";
+    msg += "<p>Kd = " + String(Kd) + "</p>";
+    msg += "<a href='/'>Back</a>";
+    server.send(200, "text/html", msg);
   });
 
 
