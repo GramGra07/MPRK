@@ -60,12 +60,10 @@ void driveMotor() {
   pidOutput = val;
   Serial.println(val);
   if (encoderValue > 0) {
-    //clockwise
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
     analogWrite(ena, val);  // PWM: speed (0–255)
   } else if (encoderValue < 0) {
-
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
     analogWrite(ena, val);  // PWM: speed (0–255)
